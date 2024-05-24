@@ -1,0 +1,723 @@
+[gd_scene load_steps=71 format=2]
+
+[ext_resource path="res://Darah.tscn" type="PackedScene" id=1]
+[ext_resource path="res://Asset/Fighter/Attack_2.png" type="Texture" id=2]
+[ext_resource path="res://Asset/Fighter/Attack_3.png" type="Texture" id=3]
+[ext_resource path="res://Asset/Fighter/Walk.png" type="Texture" id=4]
+[ext_resource path="res://Asset/Fighter/Jump.png" type="Texture" id=5]
+[ext_resource path="res://Asset/Fighter/Idle.png" type="Texture" id=6]
+[ext_resource path="res://Asset/Fighter/Run.png" type="Texture" id=7]
+[ext_resource path="res://Asset/Fighter/Hurt.png" type="Texture" id=8]
+[ext_resource path="res://Asset/Fighter/Dead.png" type="Texture" id=9]
+[ext_resource path="res://Asset/Fighter/Attack_1.png" type="Texture" id=10]
+
+[sub_resource type="GDScript" id=69]
+script/source = "extends KinematicBody2D
+
+var laju_cepat = 2000
+var laju_normal = 400
+var laju = laju_normal
+var kecepatan = Vector2.ZERO
+var laju_lompat = -280
+var gravitasi = 12
+var sedang_terluka = false
+var health_maks = 50
+var health = 50
+var mati = false
+var sedang_serang = false
+var jump_count = 0
+var jump_max = 2
+var combopoints = 3
+
+onready var sprite = $Sprite
+onready var health_progress = $CanvasLayer/HealthBar/TextureProgress
+
+signal hero_apdet_health(value)
+
+func _input(event):
+	if Input.is_action_just_pressed(\"serang\") and not sedang_terluka and combopoints == 3:
+		sedang_serang = true
+		sprite.play(\"Serang\")
+		yield(sprite, \"animation_finished\")
+		sedang_serang = false
+		$Area2D/CollisionShape2D.disabled = false
+		combopoints = combopoints - 1
+		$Timer.start()
+	elif Input.is_action_just_pressed(\"serang\") and not sedang_terluka and combopoints == 2:
+		sedang_serang = true
+		sprite.play(\"Serang2\")
+		yield(sprite, \"animation_finished\")
+		sedang_serang = false
+		$Area2D/CollisionShape2D.disabled = false
+		combopoints = combopoints - 1
+		$Timer.start()
+	elif Input.is_action_just_pressed(\"serang\") and not sedang_terluka and combopoints == 1:
+		sedang_serang = true
+		sprite.play(\"Serang3\")
+		yield(sprite, \"animation_finished\")
+		sedang_serang = false
+		$Area2D/CollisionShape2D.disabled = false
+		combopoints = combopoints - 1
+		$Timer.start()
+	else:
+		$Area2D/CollisionShape2D.disabled = true
+		
+
+func _physics_process(delta):
+	var is_jumping = false
+
+	kecepatan.y = kecepatan.y + gravitasi
+	
+	if(not sedang_terluka and not mati and not sedang_serang and Input.is_action_pressed(\"gerak_kanan\")):
+		kecepatan.x = laju
+		get_node(\"Area2D\").set_scale(Vector2(1,1))
+	if(not sedang_terluka and not mati and not sedang_serang and  Input.is_action_pressed(\"gerak_kiri\")):
+		kecepatan.x = -laju
+		get_node(\"Area2D\").set_scale(Vector2(-1,1))
+		
+	if(not sedang_terluka and not mati and not sedang_serang and Input.is_action_just_pressed(\"lari_cepat\")):
+		lari_cepat()
+	
+	if is_on_floor() and jump_count != 0:
+		jump_count = 0 
+	
+	if jump_count < jump_max:
+		if(not sedang_terluka and not mati and Input.is_action_just_pressed(\"lompat\")):
+			kecepatan.y = laju_lompat
+			is_jumping = true
+			jump_count += 1
+			
+			
+	var snap = Vector2.ZERO if is_jumping else (Vector2.DOWN * 8)
+	
+	kecepatan.x = lerp(kecepatan.x, 0, 0.2)
+	kecepatan = move_and_slide_with_snap(kecepatan, snap, Vector2.UP)
+	
+	if not sedang_terluka and not mati and not sedang_serang:
+		update_animasi()
+
+func update_animasi():
+	if is_on_floor():
+		if kecepatan.x < (laju * 0.5) and kecepatan.x > (-laju * 0.5) and not sedang_serang:
+			sprite.play(\"Diam\")
+		else:
+			if laju == laju_normal:
+				sprite.play(\"LariCepat\")
+			elif laju == laju_cepat:
+				sprite.play(\"LariCepat\")
+	else:
+		if kecepatan.y > 0:
+			# jatuh
+			sprite.play(\"Jatuh\")
+		else:
+			# lompat
+			sprite.play(\"Lompat\")
+	
+	sprite.flip_h = false
+	if kecepatan.x < 0:
+		sprite.flip_h = true
+
+func lari_cepat():
+	laju = laju_cepat
+	$Timer.start()
+
+func _on_Timer_timeout():
+	laju = laju_normal
+	combopoints = 3
+	
+
+func kitsune():
+	sedang_terluka = true
+	
+	health -= 15
+	emit_signal(\"hero_apdet_health\", (float(health)/float(health_maks)) * 100)
+	
+	sprite.play(\"Terluka\")
+	
+	if kecepatan.x >= 0:
+		kecepatan.x = -2000
+		sprite.flip_h = false
+	else:
+		kecepatan.x = -2000
+		sprite.flip_h = false
+	yield(get_tree().create_timer(1), \"timeout\")
+	
+	if health <= 0:
+		mati()
+	else:
+		sedang_terluka = false
+	
+	kecepatan.x = 0.1
+	print(\"Darah :\", health)
+	
+
+func yamabushi():
+	sedang_terluka = true
+	health -= 5
+	emit_signal(\"hero_apdet_health\", (float(health)/float(health_maks)) * 100)
+	
+	sprite.play(\"Terluka\")
+		
+	yield(get_tree().create_timer(1), \"timeout\")
+	
+	if health <= 0:
+		mati()
+	else:
+		sedang_terluka = false
+	
+	print(\"Darah :\", health)
+	
+
+func terluka():
+	sedang_terluka = true
+	
+	health -= 10
+	emit_signal(\"hero_apdet_health\", (float(health)/float(health_maks)) * 100)
+	
+	sprite.play(\"Terluka\")
+	
+	if kecepatan.x >= 0:
+		kecepatan.x = -2000
+	else:
+		kecepatan.x <= 2000
+	
+	if kecepatan.y > 0:
+		kecepatan.y = -500
+	yield(get_tree().create_timer(1), \"timeout\")
+	
+	if health <= 0:
+		mati()
+	else:
+		sedang_terluka = false
+		
+	kecepatan.x = 0.1
+	print(\"Darah :\", health)
+
+func mati():
+	sprite.play(\"Mati\")
+	yield(get_tree().create_timer(0.1), \"timeout\")
+	mati = true
+	set_collision_layer_bit(0, false)
+	set_collision_mask_bit(2, false)
+	emit_signal(\"hero_mati\")
+	yield(get_tree().create_timer(3), \"timeout\")
+	get_tree().change_scene(\"res://Level1.tscn\")
+
+func _on_Fighter_hero_apdet_health(value):
+	health_progress.value = value
+
+func _on_Area2D_body_entered(body):
+	if body.is_in_group(\"Hit\") and not sedang_terluka:
+		body.damage()   
+	if body.is_in_group(\"ketabok\") and not sedang_terluka:
+		body.luka()
+
+
+func _on_Sprite_animation_finished():
+	if $Sprite.animation == \"Serang\" || $Sprite.animation == \"Serang2\" || $Sprite.animation == \"Serang3\":
+		$Sprite.play(\"Diam\")
+"
+
+[sub_resource type="RectangleShape2D" id=2]
+extents = Vector2( 8.5, 39 )
+
+[sub_resource type="AtlasTexture" id=3]
+flags = 4
+atlas = ExtResource( 6 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=4]
+flags = 4
+atlas = ExtResource( 6 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=5]
+flags = 4
+atlas = ExtResource( 6 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=6]
+flags = 4
+atlas = ExtResource( 6 )
+region = Rect2( 384, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=7]
+flags = 4
+atlas = ExtResource( 6 )
+region = Rect2( 512, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=8]
+flags = 4
+atlas = ExtResource( 6 )
+region = Rect2( 640, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=10]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 640, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=11]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 768, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=12]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 896, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=13]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 1024, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=14]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 1152, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=15]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=16]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=17]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=18]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 384, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=19]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 512, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=20]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 640, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=21]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 768, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=22]
+flags = 4
+atlas = ExtResource( 4 )
+region = Rect2( 896, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=23]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=24]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=25]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=26]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 384, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=27]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 512, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=28]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 640, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=29]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 768, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=30]
+flags = 4
+atlas = ExtResource( 7 )
+region = Rect2( 896, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=31]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=32]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=33]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=34]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 384, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=35]
+flags = 4
+atlas = ExtResource( 5 )
+region = Rect2( 512, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=51]
+flags = 4
+atlas = ExtResource( 9 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=52]
+flags = 4
+atlas = ExtResource( 9 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=53]
+flags = 4
+atlas = ExtResource( 9 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=62]
+flags = 4
+atlas = ExtResource( 10 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=63]
+flags = 4
+atlas = ExtResource( 10 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=64]
+flags = 4
+atlas = ExtResource( 10 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=65]
+flags = 4
+atlas = ExtResource( 10 )
+region = Rect2( 384, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=70]
+flags = 4
+atlas = ExtResource( 2 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=71]
+flags = 4
+atlas = ExtResource( 2 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=72]
+flags = 4
+atlas = ExtResource( 2 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=73]
+flags = 4
+atlas = ExtResource( 3 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=74]
+flags = 4
+atlas = ExtResource( 3 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=75]
+flags = 4
+atlas = ExtResource( 3 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=76]
+flags = 4
+atlas = ExtResource( 3 )
+region = Rect2( 384, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=54]
+flags = 4
+atlas = ExtResource( 8 )
+region = Rect2( 0, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=55]
+flags = 4
+atlas = ExtResource( 8 )
+region = Rect2( 128, 0, 128, 128 )
+
+[sub_resource type="AtlasTexture" id=56]
+flags = 4
+atlas = ExtResource( 8 )
+region = Rect2( 256, 0, 128, 128 )
+
+[sub_resource type="SpriteFrames" id=9]
+animations = [ {
+"frames": [ SubResource( 3 ), SubResource( 4 ), SubResource( 5 ), SubResource( 6 ), SubResource( 7 ), SubResource( 8 ) ],
+"loop": true,
+"name": "Diam",
+"speed": 5.0
+}, {
+"frames": [ SubResource( 10 ), SubResource( 11 ), SubResource( 12 ), SubResource( 13 ), SubResource( 14 ) ],
+"loop": true,
+"name": "Jatuh",
+"speed": 5.0
+}, {
+"frames": [ SubResource( 15 ), SubResource( 16 ), SubResource( 17 ), SubResource( 18 ), SubResource( 19 ), SubResource( 20 ), SubResource( 21 ), SubResource( 22 ) ],
+"loop": true,
+"name": "Lari",
+"speed": 5.0
+}, {
+"frames": [ SubResource( 23 ), SubResource( 24 ), SubResource( 25 ), SubResource( 26 ), SubResource( 27 ), SubResource( 28 ), SubResource( 29 ), SubResource( 30 ) ],
+"loop": true,
+"name": "LariCepat",
+"speed": 20.0
+}, {
+"frames": [ SubResource( 31 ), SubResource( 32 ), SubResource( 33 ), SubResource( 34 ), SubResource( 35 ) ],
+"loop": true,
+"name": "Lompat",
+"speed": 5.0
+}, {
+"frames": [ SubResource( 51 ), SubResource( 52 ), SubResource( 53 ) ],
+"loop": false,
+"name": "Mati",
+"speed": 5.0
+}, {
+"frames": [ SubResource( 62 ), SubResource( 63 ), SubResource( 64 ), SubResource( 65 ) ],
+"loop": true,
+"name": "Serang",
+"speed": 12.0
+}, {
+"frames": [ SubResource( 70 ), SubResource( 71 ), SubResource( 72 ) ],
+"loop": true,
+"name": "Serang2",
+"speed": 12.0
+}, {
+"frames": [ SubResource( 73 ), SubResource( 74 ), SubResource( 75 ), SubResource( 76 ) ],
+"loop": true,
+"name": "Serang3",
+"speed": 12.0
+}, {
+"frames": [ SubResource( 54 ), SubResource( 55 ), SubResource( 56 ) ],
+"loop": true,
+"name": "Terluka",
+"speed": 5.0
+} ]
+
+[sub_resource type="Animation" id=77]
+resource_name = "Diam"
+length = 0.6
+tracks/0/type = "value"
+tracks/0/path = NodePath("Sprite:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 1,
+"values": [ "Diam" ]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Sprite:frame")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/keys = {
+"times": PoolRealArray( 0, 0.1, 0.2, 0.3, 0.4, 0.5 ),
+"transitions": PoolRealArray( 1, 1, 1, 1, 1, 1 ),
+"update": 1,
+"values": [ 0, 1, 2, 3, 4, 5 ]
+}
+
+[sub_resource type="Animation" id=67]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/path = NodePath("Sprite:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 0,
+"values": [ "Serang" ]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Sprite:frame")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 0,
+"values": [ 0 ]
+}
+
+[sub_resource type="Animation" id=68]
+resource_name = "Serang"
+length = 0.4
+tracks/0/type = "value"
+tracks/0/path = NodePath("Sprite:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 1,
+"values": [ "Serang" ]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Sprite:frame")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/keys = {
+"times": PoolRealArray( 0, 0.1, 0.2, 0.3 ),
+"transitions": PoolRealArray( 1, 1, 1, 1 ),
+"update": 1,
+"values": [ 0, 1, 2, 3 ]
+}
+
+[sub_resource type="Animation" id=78]
+resource_name = "Serang2"
+length = 6.0
+tracks/0/type = "value"
+tracks/0/path = NodePath("Sprite:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 1,
+"values": [ "Serang2" ]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Sprite:frame")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/keys = {
+"times": PoolRealArray( 0, 2.8, 5.5 ),
+"transitions": PoolRealArray( 1, 1, 1 ),
+"update": 1,
+"values": [ 0, 1, 2 ]
+}
+
+[sub_resource type="Animation" id=80]
+resource_name = "Serang3"
+length = 0.4
+tracks/0/type = "value"
+tracks/0/path = NodePath("Sprite:animation")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/keys = {
+"times": PoolRealArray( 0 ),
+"transitions": PoolRealArray( 1 ),
+"update": 1,
+"values": [ "Serang3" ]
+}
+tracks/1/type = "value"
+tracks/1/path = NodePath("Sprite:frame")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/keys = {
+"times": PoolRealArray( 0, 0.1, 0.2, 0.3 ),
+"transitions": PoolRealArray( 1, 1, 1, 1 ),
+"update": 1,
+"values": [ 0, 1, 2, 3 ]
+}
+
+[sub_resource type="AnimationNodeStateMachine" id=81]
+
+[sub_resource type="AnimationNodeStateMachinePlayback" id=82]
+
+[sub_resource type="RectangleShape2D" id=79]
+extents = Vector2( 10.5, 10 )
+
+[node name="Fighter" type="KinematicBody2D" groups=["luka"]]
+position = Vector2( 182, 316 )
+collision_mask = 6
+script = SubResource( 69 )
+__meta__ = {
+"_edit_group_": true
+}
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2( -3.5, 23 )
+shape = SubResource( 2 )
+
+[node name="Sprite" type="AnimatedSprite" parent="."]
+frames = SubResource( 9 )
+animation = "Serang"
+playing = true
+
+[node name="Timer" type="Timer" parent="."]
+wait_time = 0.3
+one_shot = true
+
+[node name="Camera2D" type="Camera2D" parent="."]
+current = true
+limit_left = 0
+limit_top = 0
+limit_right = 5000
+limit_bottom = 1000
+drag_margin_h_enabled = true
+drag_margin_v_enabled = true
+editor_draw_drag_margin = true
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+anims/Diam = SubResource( 77 )
+anims/RESET = SubResource( 67 )
+anims/Serang = SubResource( 68 )
+anims/Serang2 = SubResource( 78 )
+anims/Serang3 = SubResource( 80 )
+
+[node name="AnimationTree" type="AnimationTree" parent="."]
+tree_root = SubResource( 81 )
+anim_player = NodePath("../AnimationPlayer")
+parameters/playback = SubResource( 82 )
+
+[node name="CanvasLayer" parent="." instance=ExtResource( 1 )]
+
+[node name="Area2D" type="Area2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Area2D" groups=["luka"]]
+position = Vector2( 27.5, 12 )
+shape = SubResource( 79 )
+disabled = true
+
+[connection signal="hero_apdet_health" from="." to="." method="_on_Fighter_hero_apdet_health"]
+[connection signal="animation_finished" from="Sprite" to="." method="_on_Sprite_animation_finished"]
+[connection signal="timeout" from="Timer" to="." method="_on_Timer_timeout"]
+[connection signal="body_entered" from="Area2D" to="." method="_on_Area2D_body_entered"]
